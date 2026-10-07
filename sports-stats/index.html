@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Last-Five Prop Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: scouting-card tool. Search/entry rail on top, verdict strip, then game log + method; a ranked bet board at the bottom. */
+:root {
+  --bg: #eef1f4;
+  --panel: #ffffff;
+  --ink: #14202e;
+  --muted: #5a6878;
+  --line: #d4dbe3;
+  --accent: #d1561b;      /* hardwood orange */
+  --accent-soft: #fbe6da;
+  --good: #1b7f4b; --good-soft: #dcf1e5;
+  --bad: #b3261e;  --bad-soft: #f8dedc;
+  --warn: #9a6a00; --warn-soft: #f6ecd0;
+  --bar: #2c4a6b;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1620; --panel: #17212d; --ink: #e6ecf2; --muted: #93a2b3; --line: #2a3747;
+  --accent: #f07a3f; --accent-soft: #3a2418;
+  --good: #4cc38a; --good-soft: #15301f; --bad: #ff7b72; --bad-soft: #3a1a18; --warn: #e2b440; --warn-soft: #33290f;
+  --bar: #6f9ccc; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1620; --panel: #17212d; --ink: #e6ecf2; --muted: #93a2b3; --line: #2a3747;
+  --accent: #f07a3f; --accent-soft: #3a2418;
+  --good: #4cc38a; --good-soft: #15301f; --bad: #ff7b72; --bad-soft: #3a1a18; --warn: #e2b440; --warn-soft: #33290f;
+  --bar: #6f9ccc; color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); margin: 0; padding-inline: 16px; padding-block: 20px 48px }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px }
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: .01em; margin: 0; text-wrap: balance }
+h1 { font-size: 2.1rem; font-weight: 800; text-transform: uppercase; line-height: 1 }
+h1 span { color: var(--accent) }
+h2 { font-size: 1.25rem; font-weight: 700; text-transform: uppercase }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 68ch }
+.label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600 }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums }
+
+/* controls */
+.controls { display: grid; gap: 14px }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap }
+.tab { font: 600 .85rem var(--font-body); border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 6px 12px; border-radius: 999px; cursor: pointer }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink) }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end }
+.field { display: grid; gap: 4px; min-width: 0 }
+.field.grow { flex: 1 1 220px }
+input, select, textarea { font: 500 .95rem var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; width: 100% }
+textarea { font-family: var(--font-data); resize: vertical }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+.btn { font: 600 .9rem var(--font-body); border: 0; background: var(--accent); color: #fff; padding: 9px 16px; border-radius: 6px; cursor: pointer; white-space: nowrap }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line) }
+.btn:hover { filter: brightness(1.06) }
+.results { display: grid; gap: 4px; max-height: 220px; overflow: auto }
+.results button { display: flex; justify-content: space-between; gap: 10px; text-align: left; font: 500 .92rem var(--font-body); background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; cursor: pointer }
+.results button small { color: var(--muted) }
+.note { font-size: .85rem; color: var(--muted) }
+.note.err { color: var(--bad) }
+.w-sm { width: 110px }
+
+/* verdict strip */
+.who { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px }
+.who h2 { font-size: 1.6rem }
+.example-tag { font: 600 .7rem var(--font-body); text-transform: uppercase; letter-spacing: .08em; background: var(--warn-soft); color: var(--warn); padding: 3px 8px; border-radius: 4px }
+.verdict { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr); gap: 18px; align-items: stretch }
+@media (max-width: 760px) { .verdict { grid-template-columns: 1fr } }
+.call { border-radius: 10px; padding: 16px; display: grid; gap: 6px; align-content: start; background: var(--bg); border: 1px solid var(--line) }
+.call.over { background: var(--good-soft); border-color: transparent }
+.call.under { background: var(--bad-soft); border-color: transparent }
+.call .big { font: 800 2.4rem/1 var(--font-display); text-transform: uppercase }
+.call.over .big { color: var(--good) } .call.under .big { color: var(--bad) }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
+@media (max-width: 520px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.stat { border-top: 2px solid var(--line); padding-top: 6px }
+.stat b { display: block; font: 600 1.35rem var(--font-data); font-variant-numeric: tabular-nums }
+.stat small { color: var(--muted); font-size: .78rem }
+.flags { display: flex; flex-wrap: wrap; gap: 6px }
+.flag { font-size: .8rem; font-weight: 500; padding: 3px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line) }
+.flag.good { background: var(--good-soft); color: var(--good); border-color: transparent }
+.flag.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent }
+.flag.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent }
+
+/* chart + table */
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr } }
+svg text { fill: var(--muted); font: 11px var(--font-data) }
+svg text.in { fill: #fff; font-weight: 500 }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: var(--muted) }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px dashed var(--accent); vertical-align: middle; margin-right: 6px }
+.legend i.base { border-top: 2px solid var(--bar) }
+.tablebox { overflow-x: auto }
+table { width: 100%; border-collapse: collapse; font-size: .88rem }
+th { text-align: left; font: 600 .7rem var(--font-body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); border-bottom: 1px solid var(--line); padding: 6px 8px }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap }
+td.r, th.r { text-align: right }
+.hit { color: var(--good); font-weight: 600 } .miss { color: var(--bad); font-weight: 600 } .push { color: var(--warn); font-weight: 600 }
+.method { display: grid; gap: 8px; font-size: .9rem }
+.method p { margin: 0; max-width: 68ch }
+.method dt { font-weight: 600 }
+.method dd { margin: 0 0 6px; color: var(--muted) }
+details summary { cursor: pointer; font-weight: 600 }
+.empty { color: var(--muted); padding: 10px 0 }
+.del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1rem }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Last-Five <span>Prop Lab</span></h1>
+    <p class="sub">Pull a player's recent games, set the sportsbook line, and see how often they clear it, how steady they are, and whether the price gives you an edge. Recent form gets blended with the season average so a hot week doesn't fool you.</p>
+  </header>
+
+  <section class="panel controls" aria-label="Choose a player">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-live" aria-selected="true">Look up a player</button>
+      <button class="tab" role="tab" id="tab-manual" aria-selected="false">Type the numbers</button>
+    </div>
+
+    <div id="pane-live" class="row">
+      <div class="field grow"><label class="label" for="q">Player name (NBA, WNBA, NFL, MLB, NHL, college)</label>
+        <input id="q" placeholder="e.g. Jalen Brunson" autocomplete="off"></div>
+      <button class="btn" id="go">Search</button>
+    </div>
+    <div id="results" class="results" hidden></div>
+    <p id="liveNote" class="note" hidden></p>
+
+    <div id="pane-manual" hidden class="controls">
+      <div class="row">
+        <div class="field grow"><label class="label" for="m-name">Player and stat</label><input id="m-name" placeholder="e.g. Jayson Tatum points"></div>
+        <div class="field"><label class="label" for="m-season">Season avg (optional)</label><input id="m-season" class="w-sm" inputmode="decimal" placeholder="26.8"></div>
+      </div>
+      <div class="field"><label class="label" for="m-vals">Recent games, most recent first</label>
+        <textarea id="m-vals" rows="2" placeholder="31, 24, 28, 19, 33"></textarea></div>
+      <div class="row"><button class="btn" id="m-go">Analyze these numbers</button></div>
+    </div>
+
+    <div class="row">
+      <div class="field grow"><label class="label" for="stat">Stat</label><select id="stat"></select></div>
+      <div class="field"><label class="label" for="line">Prop line</label><input id="line" class="w-sm num" inputmode="decimal" value="27.5"></div>
+      <div class="field"><label class="label" for="oddsO">Over odds</label><input id="oddsO" class="w-sm num" placeholder="-110" value="-115"></div>
+      <div class="field"><label class="label" for="oddsU">Under odds</label><input id="oddsU" class="w-sm num" placeholder="-110" value="-105"></div>
+      <div class="field"><label class="label" for="n">Games</label>
+        <select id="n" class="w-sm"><option>5</option><option>10</option><option>15</option></select></div>
+      <label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pre" style="width:auto"> include preseason</label>
+    </div>
+  </section>
+
+  <section class="panel" id="out" aria-live="polite"></section>
+
+  <section class="panel">
+    <div class="who"><h2>Bet board</h2><button class="btn ghost" id="add">Add current prop</button></div>
+    <p class="note">Props you save are ranked by edge against the price. They stay in this browser only.</p>
+    <div class="tablebox"><table id="board"></table></div>
+  </section>
+
+  <section class="panel method">
+    <details>
+      <summary>How the numbers are calculated</summary>
+      <dl>
+        <dt>Hit rate</dt><dd>How many of the last N games went over the line. Five games is a small sample: 4 of 5 happens by chance about 19% of the time even for a true 50/50 bet.</dd>
+        <dt>Projection</dt><dd>Recent average blended with the season average, weighting the season like 10 extra games. Streaks tend to fade back toward a player's normal level, and this captures that.</dd>
+        <dt>Over probability</dt><dd>Normal curve around the projection using the season's game-to-game spread. Low-count stats (home runs, touchdowns, goals) use a Poisson model instead. Whole-number lines exclude the push.</dd>
+        <dt>Edge and EV</dt><dd>Odds are turned into implied probability with the bookmaker's margin (vig) removed when you give both sides. Edge is model probability minus the fair price. EV is expected profit per $100 staked.</dd>
+        <dt>Consistency</dt><dd>Standard deviation divided by the average. Under 25% is steady; over 45% is boom-or-bust.</dd>
+        <dt>Minutes / volume</dt><dd>For basketball, a change in minutes often explains a streak better than talent does. A role change makes the season average less useful.</dd>
+      </dl>
+      <p class="note">These are estimates from box scores. They don't know about injuries, matchups, rest, or lineup news, and sportsbooks already price recent form. Treat a flagged edge as a reason to look closer, never as a sure thing, and only bet what you can afford to lose.</p>
+    </details>
+  </section>
+</div>
+
+<script>
+const SAMPLE = {"name":"Nikola Jokic","team":"DEN","sport":"basketball","league":"nba","season":"2025-26","labels":["MIN","FG","FG%","3PT","3P%","FT","FT%","REB","AST","BLK","STL","PF","TO","PTS"],"names":["Minutes","Field Goals Made-Attempted","Field Goal Percentage","3-Point Field Goals Made-Attempted","3-Point Field Goal Percentage","Free Throws Made-Attempted","Free Throw Percentage","Rebounds","Assists","Blocks","Steals","Fouls","Turnovers","Points"],"games":[{"d":"2026-05-01","o":"MIN","h":false,"r":"L","t":"2025-26 Postseason","s":["43","11-19","57.9","1-5","20.0","5-6","83.3","9","10","1","0","5","4","28"]},{"d":"2026-04-28","o":"MIN","h":true,"r":"W","t":"2025-26 Postseason","s":["38","9-15","60.0","1-4","25.0","8-10","80.0","12","16","2","0","4","3","27"]},{"d":"2026-04-26","o":"MIN","h":false,"r":"L","t":"2025-26 Postseason","s":["41","8-22","36.4","0-3","0.0","8-8","100.0","15","9","1","3","3","4","24"]},{"d":"2026-04-24","o":"MIN","h":false,"r":"L","t":"2025-26 Postseason","s":["35","7-26","26.9","2-10","20.0","11-11","100.0","15","3","0","2","3","4","27"]},{"d":"2026-04-21","o":"MIN","h":true,"r":"L","t":"2025-26 Postseason","s":["40","8-20","40.0","1-7","14.3","7-7","100.0","15","8","1","0","3","3","24"]},{"d":"2026-04-18","o":"MIN","h":true,"r":"W","t":"2025-26 Postseason","s":["40","11-19","57.9","2-7","28.6","1-1","100.0","13","11","0","1","3","5","25"]},{"d":"2026-04-13","o":"SA","h":false,"r":"W","t":"2025-26 Regular Season","s":["18","7-12","58.3","1-2","50.0","8-8","100.0","8","1","1","0","1","0","23"]},{"d":"2026-04-09","o":"MEM","h":true,"r":"W","t":"2025-26 Regular Season","s":["31","5-8","62.5","0-1","0.0","4-5","80.0","16","10","0","2","0","2","14"]},{"d":"2026-04-07","o":"POR","h":true,"r":"W","t":"2025-26 Regular Season","s":["43","15-31","48.4","1-5","20.0","4-4","100.0","14","13","2","5","2","6","35"]},{"d":"2026-04-04","o":"SA","h":true,"r":"W","t":"2025-26 Regular Season","s":["44","13-25","52.0","1-5","20.0","13-15","86.7","8","13","3","0","4","0","40"]},{"d":"2026-04-02","o":"UTAH","h":false,"r":"W","t":"2025-26 Regular Season","s":["33","5-10","50.0","0-1","0.0","5-7","71.4","17","12","0","0","1","5","15"]},{"d":"2026-03-30","o":"GS","h":true,"r":"W","t":"2025-26 Regular Season","s":["36","10-20","50.0","4-8","50.0","1-1","100.0","15","8","0","1","3","2","25"]},{"d":"2026-03-28","o":"UTAH","h":true,"r":"W","t":"2025-26 Regular Season","s":["39","13-16","81.3","2-2","100.0","5-8","62.5","15","12","0","1","0","7","33"]},{"d":"2026-03-26","o":"DAL","h":true,"r":"W","t":"2025-26 Regular Season","s":["38","8-19","42.1","1-5","20.0","6-6","100.0","21","19","0","1","5","1","23"]},{"d":"2026-03-25","o":"PHX","h":false,"r":"W","t":"2025-26 Regular Season","s":["35","9-16","56.3","0-1","0.0","5-7","71.4","17","17","0","0","3","2","23"]},{"d":"2026-03-22","o":"POR","h":true,"r":"W","t":"2025-26 Regular Season","s":["35","10-18","55.6","2-8","25.0","0-0","0.0","14","14","1","2","3","5","22"]},{"d":"2026-03-21","o":"TOR","h":true,"r":"W","t":"2025-26 Regular Season","s":["37","9-14","64.3","1-2","50.0","3-5","60.0","8","9","1","1","5","2","22"]},{"d":"2026-03-19","o":"MEM","h":false,"r":"L","t":"2025-26 Regular Season","s":["39","11-19","57.9","2-4","50.0","5-8","62.5","14","9","3","1","4","10","29"]},{"d":"2026-03-18","o":"PHI","h":true,"r":"W","t":"2025-26 Regular Season","s":["25","4-7","57.1","0-1","0.0","0-0","0.0","7","14","0","0","4","5","8"]},{"d":"2026-03-15","o":"LAL","h":false,"r":"L","t":"2025-26 Regular Season","s":["43","10-19","52.6","2-6","33.3","2-2","100.0","16","14","1","5","2","4","24"]},{"d":"2026-03-13","o":"SA","h":false,"r":"W","t":"2025-26 Regular Season","s":["39","9-17","52.9","2-6","33.3","11-11","100.0","20","12","2","3","3","3","31"]},{"d":"2026-03-12","o":"HOU","h":true,"r":"W","t":"2025-26 Regular Season","s":["30","6-12","50.0","0-2","0.0","4-5","80.0","12","13","1","5","2","5","16"]},{"d":"2026-03-09","o":"OKC","h":false,"r":"L","t":"2025-26 Regular Season","s":["40","12-19","63.2","3-6","50.0","5-6","83.3","14","13","1","0","0","3","32"]},{"d":"2026-03-07","o":"NY","h":true,"r":"L","t":"2025-26 Regular Season","s":["31","14-21","66.7","1-7","14.3","9-10","90.0","8","5","0","2","1","3","38"]},{"d":"2026-03-06","o":"LAL","h":true,"r":"W","t":"2025-26 Regular Season","s":["38","10-15","66.7","0-1","0.0","8-8","100.0","12","13","1","1","4","9","28"]},{"d":"2026-03-03","o":"UTAH","h":false,"r":"W","t":"2025-26 Regular Season","s":["36","6-11","54.5","0-0","0.0","10-11","90.9","12","5","2","0","5","3","22"]},{"d":"2026-03-01","o":"MIN","h":true,"r":"L","t":"2025-26 Regular Season","s":["37","15-26","57.7","1-4","25.0","4-6","66.7","13","9","2","1","1","5","35"]},{"d":"2026-02-28","o":"OKC","h":false,"r":"L","t":"2025-26 Regular Season","s":["45","9-25","36.0","2-10","20.0","3-5","60.0","17","14","0","1","3","3","23"]},{"d":"2026-02-26","o":"BOS","h":true,"r":"W","t":"2025-26 Regular Season","s":["33","11-28","39.3","4-13","30.8","4-7","57.1","12","6","0","0","2","1","30"]},{"d":"2026-02-22","o":"GS","h":false,"r":"L","t":"2025-26 Regular Season","s":["36","11-21","52.4","3-4","75.0","10-11","90.9","20","12","2","3","1","5","35"]},{"d":"2026-02-21","o":"POR","h":false,"r":"W","t":"2025-26 Regular Season","s":["29","10-15","66.7","3-4","75.0","9-11","81.8","9","7","0","4","4","2","32"]},{"d":"2026-02-20","o":"LAC","h":false,"r":"L","t":"2025-26 Regular Season","s":["36","9-22","40.9","0-6","0.0","4-7","57.1","17","6","0","0","5","6","22"]},{"d":"2026-02-15","o":"STARS","h":false,"r":"L","t":"2025-26 Regular Season","s":["5","0-1","0.0","0-0","0.0","0-0","0.0","2","0","0","0","0","0","0"]},{"d":"2026-02-12","o":"MEM","h":true,"r":"W","t":"2025-26 Regular Season","s":["34","8-17","47.1","0-0","0.0","10-14","71.4","15","11","0","0","2","9","26"]},{"d":"2026-02-10","o":"CLE","h":true,"r":"L","t":"2025-26 Regular Season","s":["33","6-11","54.5","0-2","0.0","10-12","83.3","14","11","1","2","0","7","22"]},{"d":"2026-02-08","o":"CHI","h":false,"r":"W","t":"2025-26 Regular Season","s":["33","7-12","58.3","2-2","100.0","6-6","100.0","14","17","4","1","2","3","22"]},{"d":"2026-02-05","o":"NY","h":false,"r":"L","t":"2025-26 Regular Season","s":["45","10-27","37.0","1-13","7.7","9-12","75.0","14","10","0","0","4","0","30"]},{"d":"2026-02-04","o":"DET","h":false,"r":"L","t":"2025-26 Regular Season","s":["33","9-19","47.4","3-5","60.0","3-3","100.0","15","4","1","2","3","5","24"]},{"d":"2026-02-02","o":"OKC","h":true,"r":"L","t":"2025-26 Regular Season","s":["29","6-9","66.7","1-2","50.0","3-4","75.0","7","8","0","1","2","6","16"]},{"d":"2026-01-31","o":"LAC","h":true,"r":"W","t":"2025-26 Regular Season","s":["25","8-11","72.7","2-3","66.7","13-17","76.5","12","5","0","3","3","1","31"]},{"d":"2025-12-30","o":"MIA","h":false,"r":"L","t":"2025-26 Regular Season","s":["19","9-14","64.3","1-4","25.0","2-3","66.7","5","8","0","0","1","2","21"]},{"d":"2025-12-28","o":"ORL","h":false,"r":"L","t":"2025-26 Regular Season","s":["38","11-22","50.0","0-0","0.0","12-13","92.3","21","12","0","1","1","4","34"]},{"d":"2025-12-26","o":"MIN","h":true,"r":"W","t":"2025-26 Regular Season","s":["43","15-21","71.4","4-6","66.7","22-23","95.7","16","15","2","0","2","5","56"]},{"d":"2025-12-24","o":"DAL","h":false,"r":"L","t":"2025-26 Regular Season","s":["36","12-22","54.5","5-10","50.0","0-0","0.0","7","14","0","4","4","4","29"]},{"d":"2025-12-23","o":"UTAH","h":true,"r":"W","t":"2025-26 Regular Season","s":["29","5-7","71.4","1-1","100.0","3-4","75.0","13","13","3","2","2","2","14"]},{"d":"2025-12-20","o":"HOU","h":true,"r":"L","t":"2025-26 Regular Season","s":["29","9-20","45.0","1-4","25.0","6-7","85.7","7","5","0","0","5","5","25"]},{"d":"2025-12-19","o":"ORL","h":true,"r":"W","t":"2025-26 Regular Season","s":["38","10-17","58.8","0-2","0.0","3-4","75.0","11","13","0","2","1","6","23"]},{"d":"2025-12-16","o":"HOU","h":true,"r":"W","t":"2025-26 Regular Season","s":["42","13-27","48.1","5-9","55.6","8-11","72.7","15","10","1","2","6","4","39"]},{"d":"2025-12-12","o":"SAC","h":false,"r":"W","t":"2025-26 Regular Season","s":["29","14-16","87.5","2-2","100.0","6-8","75.0","12","8","0","2","3","1","36"]},{"d":"2025-12-07","o":"CHA","h":false,"r":"W","t":"2025-26 Regular Season","s":["35","11-16","68.8","4-8","50.0","2-3","66.7","9","11","0","1","2","4","28"]},{"d":"2025-12-06","o":"ATL","h":false,"r":"W","t":"2025-26 Regular Season","s":["36","13-26","50.0","1-8","12.5","13-15","86.7","9","8","1","1","1","2","40"]},{"d":"2025-12-04","o":"IND","h":false,"r":"W","t":"2025-26 Regular Season","s":["35","9-17","52.9","1-4","25.0","5-5","100.0","8","13","1","0","2","4","24"]},{"d":"2025-12-02","o":"DAL","h":true,"r":"L","t":"2025-26 Regular Season","s":["37","10-24","41.7","3-10","30.0","6-7","85.7","20","13","2","1","2","2","29"]},{"d":"2025-11-30","o":"PHX","h":false,"r":"W","t":"2025-26 Regular Season","s":["31","7-7","100.0","2-2","100.0","10-11","90.9","9","10","0","0","1","5","26"]},{"d":"2025-11-29","o":"SA","h":true,"r":"L","t":"2025-26 Regular Season","s":["36","7-10","70.0","1-1","100.0","6-8","75.0","9","10","1","1","5","4","21"]},{"d":"2025-11-25","o":"MEM","h":false,"r":"W","t":"2025-26 Regular Season","s":["34","5-9","55.6","3-4","75.0","4-5","80.0","10","16","0","2","1","3","17"]},{"d":"2025-11-23","o":"SAC","h":true,"r":"L","t":"2025-26 Regular Season","s":["37","16-28","57.1","3-6","50.0","9-10","90.0","13","7","0","0","4","2","44"]},{"d":"2025-11-22","o":"HOU","h":false,"r":"W","t":"2025-26 Regular Season","s":["39","11-20","55.0","4-8","50.0","8-10","80.0","10","9","2","2","5","4","34"]},{"d":"2025-11-20","o":"NO","h":false,"r":"W","t":"2025-26 Regular Season","s":["34","10-18","55.6","2-4","50.0","6-7","85.7","11","12","0","0","6","9","28"]},{"d":"2025-11-18","o":"CHI","h":true,"r":"L","t":"2025-26 Regular Season","s":["39","13-27","48.1","1-7","14.3","9-12","75.0","18","13","2","1","2","2","36"]},{"d":"2025-11-16","o":"MIN","h":false,"r":"W","t":"2025-26 Regular Season","s":["37","8-15","53.3","3-6","50.0","8-8","100.0","12","11","1","2","4","6","27"]},{"d":"2025-11-13","o":"LAC","h":false,"r":"W","t":"2025-26 Regular Season","s":["34","18-23","78.3","5-6","83.3","14-16","87.5","12","6","1","1","1","2","55"]},{"d":"2025-11-12","o":"SAC","h":false,"r":"W","t":"2025-26 Regular Season","s":["33","16-19","84.2","1-2","50.0","2-3","66.7","15","7","0","2","3","3","35"]},{"d":"2025-11-09","o":"IND","h":true,"r":"W","t":"2025-26 Regular Season","s":["32","10-14","71.4","1-1","100.0","11-12","91.7","14","14","0","1","4","8","32"]},{"d":"2025-11-08","o":"GS","h":true,"r":"W","t":"2025-26 Regular Season","s":["28","12-15","80.0","2-3","66.7","0-0","0.0","9","9","1","0","2","1","26"]},{"d":"2025-11-06","o":"MIA","h":true,"r":"W","t":"2025-26 Regular Season","s":["37","12-18","66.7","2-5","40.0","7-8","87.5","15","16","0","3","1","3","33"]},{"d":"2025-11-04","o":"SAC","h":true,"r":"W","t":"2025-26 Regular Season","s":["36","14-22","63.6","4-10","40.0","2-3","66.7","7","14","2","4","3","1","34"]},{"d":"2025-11-01","o":"POR","h":false,"r":"L","t":"2025-26 Regular Season","s":["37","7-10","70.0","2-3","66.7","5-7","71.4","14","9","2","1","1","3","21"]},{"d":"2025-10-30","o":"NO","h":true,"r":"W","t":"2025-26 Regular Season","s":["28","10-15","66.7","1-2","50.0","0-0","0.0","12","10","0","2","4","2","21"]},{"d":"2025-10-28","o":"MIN","h":false,"r":"W","t":"2025-26 Regular Season","s":["36","9-10","90.0","0-0","0.0","7-7","100.0","19","10","1","2","4","3","25"]},{"d":"2025-10-26","o":"PHX","h":true,"r":"W","t":"2025-26 Regular Season","s":["32","5-8","62.5","0-3","0.0","4-4","100.0","14","15","0","3","3","5","14"]},{"d":"2025-10-24","o":"GS","h":false,"r":"L","t":"2025-26 Regular Season","s":["41","8-23","34.8","2-13","15.4","3-4","75.0","13","10","1","1","3","2","21"]},{"d":"2025-10-15","o":"CHI","h":true,"r":"W","t":"2025-26 Preseason","s":["24","7-10","70.0","0-0","0.0","4-4","100.0","8","8","0","1","4","0","18"]},{"d":"2025-10-13","o":"LAC","h":false,"r":"W","t":"2025-26 Preseason","s":["22","6-9","66.7","0-2","0.0","0-0","0.0","9","6","1","1","1","1","12"]},{"d":"2025-10-07","o":"TOR","h":true,"r":"W","t":"2025-26 Preseason","s":["21","5-5","100.0","0-0","0.0","7-9","77.8","6","5","0","1","2","6","17"]},{"d":"2025-10-05","o":"MIN","h":true,"r":"L","t":"2025-26 Preseason","s":["19","4-5","80.0","0-0","0.0","6-6","100.0","5","2","0","1","0","1","14"]}]};
+const API = "https://site.web.api.espn.com/apis/common/v3";
+const $ = (id) => document.getElementById(id);
+const fmt = (x, d = 1) => (x == null || isNaN(x) ? "–" : Number(x).toFixed(d));
+const pct = (x) => (x == null || isNaN(x) ? "–" : Math.round(x * 100) + "%");
+
+let state = { player: null, mode: "live" };
+
+/* ---------- data shaping ---------- */
+// Turns a gamelog into {columns:[{key,name}], games:[{d,o,h,r,t,v:{key:number}}]}
+function shape(raw) {
+  const cols = [];
+  const parsed = raw.games.map((g) => ({ ...g, v: {} }));
+  raw.labels.forEach((lab, i) => {
+    const nm = raw.names[i] || lab;
+    const sample = raw.games.find((g) => g.s[i] != null)?.s[i] || "";
+    if (/^\d+-\d+$/.test(sample)) {
+      cols.push({ key: lab + "M", name: nm.split(/ (?:Made)?-/)[0] + " made (" + lab + "M)" });
+      cols.push({ key: lab + "A", name: lab + " attempts (" + lab + "A)" });
+      parsed.forEach((g) => { const [a, b] = String(g.s[i] || "").split("-").map(Number); g.v[lab + "M"] = a; g.v[lab + "A"] = b; });
+    } else {
+      let key = lab; let k = 2;
+      while (cols.some((c) => c.key === key)) key = lab + k++;
+      cols.push({ key, name: nm + (nm.toUpperCase() === lab ? "" : " (" + lab + ")") });
+      parsed.forEach((g) => { const x = parseFloat(String(g.s[i]).replace(/[^\d.-]/g, "")); g.v[key] = isNaN(x) ? null : x; });
+    }
+  });
+  const byName = (re) => cols.find((c) => re.test(c.name))?.key;
+  const combos = [];
+  const add = (label, keys) => { if (keys.every(Boolean)) combos.push({ key: "combo:" + keys.join("+"), name: label, parts: keys }); };
+  if (raw.sport === "basketball") {
+    const P = byName(/^Points/), R = byName(/Rebounds/), A = byName(/^Assists/);
+    add("Pts + Reb + Ast (PRA)", [P, R, A]); add("Pts + Reb", [P, R]); add("Pts + Ast", [P, A]); add("Reb + Ast", [R, A]);
+  }
+  if (raw.sport === "football") {
+    add("Pass + Rush yards", [byName(/^Passing Yards/), byName(/^Rushing Yards/)]);
+    add("Rec + Rush yards", [byName(/^Receiving Yards/), byName(/^Rushing Yards/)]);
+  }
+  if (raw.sport === "baseball") add("Hits + Runs + RBI", [byName(/^Hits|\(H\)$/), byName(/^Runs|\(R\)$/), byName(/RBI/)]);
+  const minutes = byName(/^Minutes|\(MIN\)/);
+  return { cols: [...combos, ...cols], games: parsed, minutes };
+}
+
+function valueOf(g, key, cols) {
+  if (key.startsWith("combo:")) {
+    const parts = cols.find((c) => c.key === key).parts;
+    const xs = parts.map((p) => g.v[p]);
+    return xs.some((x) => x == null) ? null : xs.reduce((a, b) => a + b, 0);
+  }
+  return g.v[key];
+}
+
+/* ---------- math ---------- */
+const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+const sd = (a) => { if (a.length < 2) return 0; const m = mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1)); };
+const median = (a) => { const s = [...a].sort((x, y) => x - y); const h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+function phi(z) { // standard normal CDF
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp(-z * z / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+function poissonCdf(k, lam) { let s = 0, term = Math.exp(-lam); for (let i = 0; i <= k; i++) { s += term; term *= lam / (i + 1); } return s; }
+const implied = (o) => { o = parseFloat(o); if (isNaN(o) || (o > -100 && o < 100)) return null; return o < 0 ? -o / (-o + 100) : 100 / (o + 100); };
+const payout = (o) => { o = parseFloat(o); return o < 0 ? 100 * 100 / -o : o; }; // profit on $100
+
+function analyze(recent, baseline, line, oddsO, oddsU, minutes) {
+  // recent: most-recent-first array of numbers
+  const n = recent.length;
+  const m5 = mean(recent), sd5 = sd(recent);
+  const hits = recent.filter((x) => x > line).length;
+  const pushes = recent.filter((x) => x === line).length;
+  const w = recent.map((_, i) => n - i);
+  const wavg = recent.reduce((s, x, i) => s + x * w[i], 0) / w.reduce((a, b) => a + b, 0);
+  const chrono = [...recent].reverse();
+  const xm = (n - 1) / 2;
+  const slope = n > 1 ? chrono.reduce((s, y, i) => s + (i - xm) * (y - m5), 0) / chrono.reduce((s, _, i) => s + (i - xm) ** 2, 0) : 0;
+
+  const haveBase = baseline && baseline.length >= 8;
+  const baseMean = haveBase ? mean(baseline) : baseline?.mean ?? null;
+  const baseSd = haveBase ? sd(baseline) : null;
+  const K = baseMean != null ? 10 : 0;
+  const proj = baseMean != null ? (n * m5 + K * baseMean) / (n + K) : m5;
+  const spread = Math.max(baseSd ?? sd5, 0.12 * Math.abs(proj), 0.6);
+
+  const integers = recent.every((x) => Number.isInteger(x));
+  const usePoisson = integers && proj < 4;
+  let pOver, pPush = 0;
+  if (usePoisson) {
+    const lam = Math.max(proj, 0.05);
+    pOver = 1 - poissonCdf(Math.floor(line), lam);
+    if (Number.isInteger(line)) pPush = poissonCdf(line, lam) - (line > 0 ? poissonCdf(line - 1, lam) : 0);
+  } else if (Number.isInteger(line) && integers) {
+    pOver = 1 - phi((line + 0.5 - proj) / spread);
+    pPush = phi((line + 0.5 - proj) / spread) - phi((line - 0.5 - proj) / spread);
+  } else pOver = 1 - phi((line - proj) / spread);
+  const pUnder = Math.max(0, 1 - pOver - pPush);
+
+  const iO = implied(oddsO), iU = implied(oddsU);
+  let fairO = iO, fairU = iU, vig = null;
+  if (iO != null && iU != null) { vig = iO + iU - 1; fairO = iO / (iO + iU); fairU = iU / (iO + iU); }
+  else if (iO != null) fairU = 1 - iO; else if (iU != null) fairO = 1 - iU;
+  // decide on pushes removed, which is how a book settles them
+  const live = 1 - pPush;
+  const qO = pOver / live, qU = pUnder / live;
+  const edgeO = fairO != null ? qO - fairO : null, edgeU = fairU != null ? qU - fairU : null;
+  const evO = iO != null ? pOver * payout(oddsO) - pUnder * 100 : null;
+  const evU = iU != null ? pUnder * payout(oddsU) - pOver * 100 : null;
+
+  const cv = m5 ? sd5 / Math.abs(m5) : 0;
+  const flags = [];
+  if (baseMean != null && spread > 0) {
+    const z = (m5 - baseMean) / (spread / Math.sqrt(n));
+    if (z > 1.5) flags.push(["warn", `Running hot: +${fmt(m5 - baseMean)} over season. Expect some cool-off`]);
+    else if (z < -1.5) flags.push(["warn", `Running cold: ${fmt(m5 - baseMean)} under season. Bounce-back likely`]);
+  }
+  if (cv < 0.25) flags.push(["good", "Steady producer"]); else if (cv > 0.45) flags.push(["bad", "Boom-or-bust"]);
+  if (Math.abs(slope) > 0.08 * Math.max(Math.abs(m5), 1)) flags.push([slope > 0 ? "good" : "bad", slope > 0 ? "Trending up game to game" : "Trending down game to game"]);
+  if (minutes && minutes.recent > 0 && minutes.base > 0) {
+    const ch = minutes.recent / minutes.base - 1;
+    if (ch > 0.1) flags.push(["warn", `Minutes up ${pct(ch)} vs season: bigger role?`]);
+    if (ch < -0.1) flags.push(["warn", `Minutes down ${pct(-ch)} vs season: check injury or role`]);
+  }
+  if (n < 5) flags.push(["bad", "Fewer than 5 games"]);
+  if (baseMean == null) flags.push(["warn", "No season baseline, so projection uses recent games only"]);
+
+  let side = "none";
+  const TH = 0.04;
+  if (edgeO != null && edgeO >= TH && edgeO >= (edgeU ?? -1)) side = "over";
+  else if (edgeU != null && edgeU >= TH) side = "under";
+  else if (edgeO == null && edgeU == null) side = qO >= 0.58 ? "over" : qU >= 0.58 ? "under" : "none";
+
+  return { n, m5, sd5, med: median(recent), hits, pushes, wavg, slope, baseMean, proj, spread, pOver, pUnder, pPush, qO, qU,
+    fairO, fairU, vig, edgeO, edgeU, evO, evU, cv, flags, side, model: usePoisson ? "Poisson" : "Normal" };
+}
+
+/* ---------- live lookup ---------- */
+async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); }
+
+async function search() {
+  const q = $("q").value.trim(); if (!q) return;
+  const note = $("liveNote"); note.hidden = false; note.className = "note"; note.textContent = "Searching…";
+  try {
+    const d = await getJSON(`${API}/search?query=${encodeURIComponent(q)}&limit=10&type=player`);
+    const items = (d.items || []).filter((i) => i.sport && i.league);
+    const box = $("results"); box.innerHTML = ""; box.hidden = !items.length;
+    note.textContent = items.length ? "Pick a player:" : "No players found. Check the spelling.";
+    items.forEach((it) => {
+      const b = document.createElement("button");
+      const team = it.teamRelationships?.[0]?.displayName || "";
+      b.innerHTML = `<span>${it.displayName}</span><small>${(it.league || "").toUpperCase()} · ${team}</small>`;
+      b.onclick = () => loadPlayer(it, team);
+      box.appendChild(b);
+    });
+  } catch (e) { blocked(); }
+}
+
+function blocked() {
+  const note = $("liveNote"); note.hidden = false; note.className = "note err";
+  note.textContent = "Couldn't reach ESPN from here. This happens inside the hosted preview, which blocks outside requests. Open sports-stats/index.html from your repo in a normal browser for live lookups, or use “Type the numbers”.";
+}
+
+async function loadPlayer(it, team) {
+  const note = $("liveNote"); note.className = "note"; note.textContent = `Loading ${it.displayName}…`; $("results").hidden = true;
+  try {
+    const url = `${API}/sports/${it.sport}/${it.league}/athletes/${it.id}/gamelog`;
+    const d = await getJSON(url);
+    let raw = toRaw(d, it, team);
+    if (raw.games.filter((g) => !/Preseason/.test(g.t)).length < 15) { // early season: borrow last season for a baseline
+      const seasonFilter = (d.filters || []).find((f) => f.name === "season");
+      const cur = parseInt(seasonFilter?.value);
+      if (cur) { try { const prev = toRaw(await getJSON(`${url}?season=${cur - 1}`), it, team); if (prev.labels.join() === raw.labels.join()) raw.games = raw.games.concat(prev.games); } catch (e) {} }
+    }
+    if (!raw.games.length) { note.textContent = "No games on record for this player yet."; return; }
+    note.textContent = `Loaded ${raw.games.length} games for ${it.displayName}.`;
+    setPlayer(raw, false);
+  } catch (e) { blocked(); }
+}
+
+function toRaw(d, it, team) {
+  const games = [];
+  (d.seasonTypes || []).forEach((st) => (st.categories || []).forEach((c) => {
+    if (c.type !== "event") return;
+    (c.events || []).forEach((e) => { const m = d.events[e.eventId]; if (!m) return;
+      games.push({ d: m.gameDate.slice(0, 10), o: m.opponent?.abbreviation || "?", h: m.atVs !== "@", r: m.gameResult || "", t: st.displayName, s: e.stats }); });
+  }));
+  games.sort((a, b) => b.d.localeCompare(a.d));
+  return { name: it.displayName, team, sport: it.sport, league: it.league, labels: d.labels || [], names: d.displayNames || d.labels || [], games };
+}
+
+function setPlayer(raw, isExample) {
+  const shaped = shape(raw);
+  state.player = { raw, ...shaped, isExample };
+  state.mode = "live";
+  const sel = $("stat"); const prev = sel.value; sel.innerHTML = "";
+  shaped.cols.forEach((c) => { const o = document.createElement("option"); o.value = c.key; o.textContent = c.name; sel.appendChild(o); });
+  const defaults = { basketball: /^Points/, football: /Passing Yards|Receiving Yards|Rushing Yards/, baseball: /^Hits|\(H\)$/, hockey: /Shots|Points/ };
+  const pick = shaped.cols.find((c) => c.key === prev) || shaped.cols.find((c) => !c.parts && defaults[raw.sport]?.test(c.name)) || shaped.cols[0];
+  if (pick) sel.value = pick.key;
+  suggestLine();
+  render();
+}
+
+// Start the line just above the season average; the user overwrites it with the book's number.
+function suggestLine() {
+  const p = state.player; if (!p) return;
+  const vals = p.games.filter((g) => !/Preseason/.test(g.t)).map((g) => valueOf(g, $("stat").value, p.cols)).filter((x) => x != null);
+  if (vals.length) $("line").value = (Math.floor(mean(vals.slice(0, 82))) + 0.5).toFixed(1);
+}
+
+/* ---------- manual ---------- */
+function manual() {
+  const vals = $("m-vals").value.split(/[\s,;]+/).filter(Boolean).map(Number).filter((x) => !isNaN(x));
+  if (!vals.length) { $("out").innerHTML = `<p class="empty">Type at least one game's number, most recent first.</p>`; return; }
+  const seasonAvg = parseFloat($("m-season").value);
+  state.mode = "manual";
+  state.manual = { name: $("m-name").value.trim() || "Manual entry", vals, seasonAvg: isNaN(seasonAvg) ? null : seasonAvg };
+  render();
+}
+
+/* ---------- render ---------- */
+function current() {
+  const N = +$("n").value, line = parseFloat($("line").value);
+  if (state.mode === "manual" && state.manual) {
+    const m = state.manual; const recent = m.vals.slice(0, N);
+    return { title: m.name, statName: "", recent, games: null, base: m.seasonAvg != null ? { mean: m.seasonAvg } : null, line, minutes: null, isExample: false };
+  }
+  const p = state.player; if (!p) return null;
+  const key = $("stat").value;
+  const games = p.games.filter((g) => $("pre").checked || !/Preseason/.test(g.t)).map((g) => ({ ...g, val: valueOf(g, key, p.cols) })).filter((g) => g.val != null);
+  const recentG = games.slice(0, N);
+  const base = games.slice(0, 82).map((g) => g.val);
+  let minutes = null;
+  if (p.minutes) {
+    const mins = games.map((g) => g.v[p.minutes]).filter((x) => x != null);
+    if (mins.length >= 8) minutes = { recent: mean(mins.slice(0, N)), base: mean(mins.slice(0, 82)) };
+  }
+  const statName = p.cols.find((c) => c.key === key)?.name || "";
+  return { title: p.raw.name, sub: `${p.raw.team || ""} · ${p.raw.league.toUpperCase()}`, statName, recent: recentG.map((g) => g.val), games: recentG, base, line, minutes, isExample: p.isExample };
+}
+
+function render() {
+  const c = current(); const out = $("out");
+  if (!c || !c.recent.length) { out.innerHTML = `<p class="empty">No games with this stat. Pick another stat or player.</p>`; return; }
+  if (isNaN(c.line)) { out.innerHTML = `<p class="empty">Enter the sportsbook's prop line, like 24.5.</p>`; return; }
+  const a = analyze(c.recent, c.base, c.line, $("oddsO").value, $("oddsU").value, c.minutes);
+  state.last = { c, a };
+
+  const callTitle = a.side === "over" ? `Lean over ${c.line}` : a.side === "under" ? `Lean under ${c.line}` : "No clear edge";
+  const callWhy = a.side === "none"
+    ? (a.edgeO != null ? `The price already reflects what the stats say. Best side edge is ${pct(Math.max(a.edgeO, a.edgeU ?? -1))}.` : "The model sees this close to a coin flip.")
+    : a.side === "over"
+      ? `Model gives the over ${pct(a.qO)} vs ${pct(a.fairO)} fair price${a.edgeO != null ? ` (edge ${pct(a.edgeO)}, EV ${a.evO >= 0 ? "+" : ""}$${fmt(a.evO, 2)} per $100)` : ""}.`
+      : `Model gives the under ${pct(a.qU)} vs ${pct(a.fairU)} fair price${a.edgeU != null ? ` (edge ${pct(a.edgeU)}, EV ${a.evU >= 0 ? "+" : ""}$${fmt(a.evU, 2)} per $100)` : ""}.`;
+
+  out.innerHTML = `
+    <div class="who">
+      <div><h2>${esc(c.title)}</h2><div class="note">${esc(c.sub || "")}${c.statName ? " · " + esc(c.statName) : ""}</div></div>
+      ${c.isExample ? `<span class="example-tag">Example · real 2025-26 data</span>` : ""}
+    </div>
+    <div class="verdict" style="margin-top:12px">
+      <div class="call ${a.side}">
+        <span class="label">Verdict</span>
+        <span class="big">${callTitle}</span>
+        <span>${callWhy}</span>
+        <span class="note">${a.model} model${a.vig != null ? ` · book margin ${pct(a.vig)}` : ""}</span>
+      </div>
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="stats">
+          <div class="stat"><span class="label">Hit rate</span><b>${a.hits}/${a.n}</b><small>${a.pushes ? a.pushes + " push · " : ""}over ${c.line}</small></div>
+          <div class="stat"><span class="label">Last ${a.n} avg</span><b>${fmt(a.m5)}</b><small>median ${fmt(a.med)} · weighted ${fmt(a.wavg)}</small></div>
+          <div class="stat"><span class="label">Season avg</span><b>${fmt(a.baseMean)}</b><small>${c.base?.length ? c.base.length + " games" : "entered by you"}</small></div>
+          <div class="stat"><span class="label">Projection</span><b>${fmt(a.proj)}</b><small>± ${fmt(a.spread)} typical swing</small></div>
+          <div class="stat"><span class="label">P(over)</span><b>${pct(a.qO)}</b><small>fair price ${pct(a.fairO)}</small></div>
+          <div class="stat"><span class="label">P(under)</span><b>${pct(a.qU)}</b><small>fair price ${pct(a.fairU)}</small></div>
+          <div class="stat"><span class="label">Consistency</span><b>${pct(a.cv)}</b><small>spread ÷ average</small></div>
+          <div class="stat"><span class="label">Over EV / $100</span><b>${a.evO == null ? "–" : (a.evO >= 0 ? "+" : "") + fmt(a.evO, 2)}</b><small>under ${a.evU == null ? "–" : (a.evU >= 0 ? "+" : "") + fmt(a.evU, 2)}</small></div>
+        </div>
+        <div class="flags">${a.flags.map(([k, t]) => `<span class="flag ${k}">${esc(t)}</span>`).join("")}</div>
+      </div>
+    </div>
+    <div class="two" style="margin-top:18px">
+      <div>${chart(c.recent, c.line, a.baseMean, c.games)}</div>
+      <div class="tablebox">${gameTable(c)}</div>
+    </div>`;
+}
+
+function chart(vals, line, base, games) {
+  const chrono = [...vals].reverse(), lab = games ? [...games].reverse().map((g) => g.o) : chrono.map((_, i) => "G" + (i + 1));
+  const W = 460, H = 220, L = 34, R = 10, T = 14, B = 30;
+  const top = Math.max(...chrono, line, base ?? 0) * 1.15 || 1;
+  const y = (v) => T + (H - T - B) * (1 - v / top);
+  const bw = (W - L - R) / chrono.length;
+  const ticks = [0, top / 2, top].map((t) => Math.round(t));
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Recent games vs the line">`;
+  ticks.forEach((t) => { s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`; });
+  chrono.forEach((v, i) => {
+    const x = L + i * bw + bw * 0.18, w = bw * 0.64;
+    const col = v > line ? "var(--good)" : v === line ? "var(--warn)" : "var(--bad)";
+    s += `<rect x="${x}" y="${y(v)}" width="${w}" height="${y(0) - y(v)}" rx="3" fill="${col}" opacity=".85"/>`;
+    const inside = y(0) - y(v) > 20;
+    s += `<text ${inside ? 'class="in"' : ""} x="${x + w / 2}" y="${inside ? y(v) + 15 : y(v) - 4}" text-anchor="middle">${fmt(v, Number.isInteger(v) ? 0 : 1)}</text>`;
+    s += `<text x="${x + w / 2}" y="${H - 10}" text-anchor="middle">${esc(lab[i])}</text>`;
+  });
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(line)}" y2="${y(line)}" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4"/>`;
+  if (base != null) s += `<line x1="${L}" x2="${W - R}" y1="${y(base)}" y2="${y(base)}" stroke="var(--bar)" stroke-width="1.5"/>`;
+  return s + `</svg><div class="legend"><span><i></i>Line ${line}</span>${base != null ? `<span><i class="base"></i>Season avg ${fmt(base)}</span>` : ""}<span>Oldest on the left</span></div>`;
+}
+
+function gameTable(c) {
+  const rows = c.recent.map((v, i) => {
+    const g = c.games?.[i];
+    const res = v > c.line ? `<span class="hit">Over</span>` : v === c.line ? `<span class="push">Push</span>` : `<span class="miss">Under</span>`;
+    return `<tr><td class="num">${g ? g.d.slice(5) : "G" + (i + 1)}</td><td>${g ? (g.h ? "vs " : "@ ") + esc(g.o) : ""}</td><td>${g ? esc(g.r) : ""}</td><td class="r num">${fmt(v, Number.isInteger(v) ? 0 : 1)}</td><td>${res}</td></tr>`;
+  }).join("");
+  return `<table><thead><tr><th>Date</th><th>Opp</th><th>W/L</th><th class="r">Stat</th><th>vs ${c.line}</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---------- board ---------- */
+function loadBoard() { try { return JSON.parse(localStorage.getItem("propBoard") || "[]"); } catch (e) { return []; } }
+function saveBoard(b) { try { localStorage.setItem("propBoard", JSON.stringify(b)); } catch (e) {} }
+let board = loadBoard();
+function addToBoard() {
+  if (!state.last) return;
+  const { c, a } = state.last;
+  const side = a.side === "under" || (a.side === "none" && (a.edgeU ?? a.qU - 0.5) > (a.edgeO ?? a.qO - 0.5)) ? "Under" : "Over";
+  board.push({ who: c.title, stat: c.statName || "", line: c.line, side, prob: side === "Over" ? a.qO : a.qU,
+    edge: side === "Over" ? a.edgeO : a.edgeU, ev: side === "Over" ? a.evO : a.evU, hits: `${a.hits}/${a.n}`, proj: a.proj });
+  saveBoard(board); drawBoard();
+}
+function drawBoard() {
+  const t = $("board");
+  if (!board.length) { t.innerHTML = `<tr><td class="empty">Nothing saved yet. Analyze a prop and press “Add current prop”.</td></tr>`; return; }
+  const sorted = board.map((b, i) => ({ ...b, i })).sort((x, y) => (y.edge ?? y.prob - 0.5) - (x.edge ?? x.prob - 0.5));
+  t.innerHTML = `<thead><tr><th>Player</th><th>Prop</th><th class="r">Proj</th><th class="r">Hits</th><th class="r">Prob</th><th class="r">Edge</th><th class="r">EV/$100</th><th></th></tr></thead><tbody>` +
+    sorted.map((b) => `<tr><td>${esc(b.who)}</td><td>${b.side} ${b.line} ${esc(b.stat.replace(/ \(.+\)$/, ""))}</td><td class="r num">${fmt(b.proj)}</td><td class="r num">${b.hits}</td><td class="r num">${pct(b.prob)}</td>
+      <td class="r num ${b.edge > 0.04 ? "hit" : b.edge < 0 ? "miss" : ""}">${b.edge == null ? "–" : (b.edge > 0 ? "+" : "") + pct(b.edge)}</td><td class="r num">${b.ev == null ? "–" : fmt(b.ev, 2)}</td>
+      <td><button class="del" aria-label="Remove" data-i="${b.i}">×</button></td></tr>`).join("") + `</tbody>`;
+  t.querySelectorAll(".del").forEach((x) => x.onclick = () => { board.splice(+x.dataset.i, 1); saveBoard(board); drawBoard(); });
+}
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch])); }
+
+/* ---------- wiring ---------- */
+function setTab(mode) {
+  $("tab-live").setAttribute("aria-selected", mode === "live"); $("tab-manual").setAttribute("aria-selected", mode === "manual");
+  $("pane-live").hidden = mode !== "live"; $("pane-manual").hidden = mode !== "manual";
+  $("stat").closest(".field").hidden = mode === "manual"; $("pre").parentElement.hidden = mode === "manual";
+  $("results").hidden = true; $("liveNote").hidden = true;
+  if (mode === "live" && state.player) { state.mode = "live"; render(); }
+}
+$("tab-live").onclick = () => setTab("live");
+$("tab-manual").onclick = () => setTab("manual");
+$("go").onclick = search;
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+$("m-go").onclick = manual;
+$("stat").addEventListener("change", suggestLine);
+["stat", "line", "oddsO", "oddsU", "n", "pre"].forEach((id) => $(id).addEventListener(id === "line" || id.startsWith("odds") ? "input" : "change", render));
+$("add").onclick = addToBoard;
+
+setPlayer(SAMPLE, true);
+drawBoard();
+</script>
+
+</body>
+</html>
